@@ -14,9 +14,31 @@
 #
 # You should have received a copy of the GNU General Public License
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
-from random import choice
 from re import escape, sub
+from requests import get, post
 from os.path import split, join
+from random import choice, randint
+from requests.exceptions import RequestException
+
+
+def request_get(url, params=None, **kwargs):
+    try:
+        response = get(url, params, **kwargs)
+    except RequestException:
+        return None
+    if 200 <= response.status_code < 400:
+        return response
+    return None
+
+
+def request_post(url, data=None, json=None, **kwargs):
+    try:
+        response = post(url, data, json, **kwargs)
+    except RequestException:
+        return None
+    if 200 <= response.status_code < 400:
+        return response
+    return None
 
 
 def format_path(path, multiple=False, repl='_'):
@@ -46,32 +68,100 @@ def format_path(path, multiple=False, repl='_'):
 
 
 class UAGenerator:
-    __types = ['chrome', 'firefox', 'safari', 'opera', 'ie']
+    __types = ['chrome', 'ie']
 
-    def __init__(self):
-        pass
+    user_agents = (
+        'chrome', 'firefox', 'internet_explorer', 'opera', 'safari',
+    )
+
+    windows_platform_tokens = (
+        'Windows 95', 'Windows 98', 'Windows 98; Win 9x 4.90', 'Windows CE',
+        'Windows NT 4.0', 'Windows NT 5.0', 'Windows NT 5.01',
+        'Windows NT 5.1', 'Windows NT 5.2', 'Windows NT 6.0', 'Windows NT 6.1',
+        'Windows NT 6.2',
+    )
+
+    linux_processors = ('i686', 'x86_64')
+
+    mac_processors = ('Intel', 'PPC', 'U; Intel', 'U; PPC')
+
+    android_versions = (
+        '1.0', '1.1', '1.5', '1.6', '2.0', '2.0.1', '2.1', '2.2', '2.2.1', '2.2.2', '2.2.3', '2.3', '2.3.1', '2.3.2',
+        '2.3.3', '2.3.4', '2.3.5', '2.3.6', '2.3.7', '3.0', '3.1', '3.2', '3.2.1', '3.2.2', '3.2.3', '3.2.4', '3.2.5',
+        '3.2.6', '4.0', '4.0.1', '4.0.2', '4.0.3', '4.0.4', '4.1', '4.1.1', '4.1.2', '4.2', '4.2.1', '4.2.2', '4.3',
+        '4.3.1', '4.4', '4.4.1', '4.4.2', '4.4.3', '4.4.4', '5.0', '5.0.1', '5.0.2', '5.1', '5.1.1', '6.0', '6.0.1',
+        '7.0', '7.1', '7.1.1', '7.1.2', '8.0.0', '8.1.0', '9',
+    )
+
+    apple_devices = ('iPhone', 'iPad')
+
+    ios_versions = (
+        '3.1.3', '4.2.1', '5.1.1', '6.1.6', '7.1.2', '9.3.5', '9.3.6', '10.3.3', '10.3.4', '12.4',
+    )
 
     def random(self):
-        getattr(self, choice(self.__types))
-        return 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/65.0.3325.162 ' \
-               'Safari/537.36 '
+        return getattr(self, choice(self.__types))
 
-    def chrome(self):
-        temp = '({0}) AppleWebKit/{1} (KHTML, like Gecko) Chrome/{2}.0.{3}.0 Safari/{4}'
-        temp_ios = '({0}) AppleWebKit/{1} (KHTML, like Gecko) CriOS/{2}.0.{3}.0 Mobile/{4} Safari/{1}'
+    def chrome(self, version_from=13, version_to=63, build_from=800, build_to=899):
+        saf = '{0}.{1}'.format(randint(531, 536),
+                               randint(0, 2))
+        tmplt = '({0}) AppleWebKit/{1} (KHTML, like Gecko)' \
+                ' Chrome/{2}.0.{3}.0 Safari/{4}'
+        platforms = (
+            tmplt.format(self.linux_platform_token(),
+                         saf,
+                         randint(version_from, version_to),
+                         randint(build_from, build_to),
+                         saf),
+            tmplt.format(self.windows_platform_token(),
+                         saf,
+                         randint(version_from, version_to),
+                         randint(build_from, build_to),
+                         saf),
+            tmplt.format(self.mac_platform_token(),
+                         saf,
+                         randint(version_from, version_to),
+                         randint(build_from, build_to),
+                         saf),
+            tmplt.format('Linux; {0}'.format(self.android_platform_token()),
+                         saf,
+                         randint(version_from, version_to),
+                         randint(build_from, build_to),
+                         saf),
+        )
 
-    def firefox(self):
-        pass
-
-    def safari(self):
-        pass
-
-    def opera(self):
-        pass
+        return 'Mozilla/5.0 ' + choice(platforms)
 
     def ie(self):
-        pass
+        tmplt = 'Mozilla/5.0 (compatible; MSIE {0}.0; {1}; Trident/{2}.{3})'
+        return tmplt.format(randint(5, 9),
+                            self.windows_platform_token(),
+                            randint(3, 5),
+                            randint(0, 1))
 
     @property
     def types(self):
         return self.__types
+
+    def windows_platform_token(self):
+        return choice(self.windows_platform_tokens)
+
+    def linux_platform_token(self):
+        return 'X11; Linux {0}'.format(
+            choice(self.linux_processors))
+
+    def mac_platform_token(self):
+        return 'Macintosh; {0} Mac OS X 10_{1}_{2}'.format(
+            choice(self.mac_processors),
+            randint(5, 12),
+            randint(0, 9),
+        )
+
+    def android_platform_token(self):
+        return 'Android {0}'.format(choice(self.android_versions))
+
+    def ios_platform_token(self):
+        return '{0}; CPU {0} OS {1} like Mac OS X'.format(
+            choice(self.apple_devices),
+            choice(self.ios_versions).replace('.', '_'),
+        )

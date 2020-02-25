@@ -21,7 +21,7 @@ from random import randint
 from ..utils import UAGenerator
 from os.path import exists, join
 from multiprocessing import Process, Queue, cpu_count
-from ..packages import DataPackage, FileDataPackage, ResultPackage, SignalPackage
+from ..packages import TaskPackage, FilePackage, ResultPackage, SignalPackage
 
 
 class MultiprocessingSpider:
@@ -53,8 +53,6 @@ class MultiprocessingSpider:
         self.__data_queue = Queue()
         self.__result_queue = Queue()
         self.process_num = process_num if isinstance(process_num, int) and 1 <= process_num <= 50 else cpu_count()
-        # pure download mode
-        self._download_mode = False
 
     def add_url(self, url, handler=None):
         """Add a url.
@@ -66,6 +64,8 @@ class MultiprocessingSpider:
             handler = self.parse
         if isinstance(url, str) and url.startswith('http') and callable(handler):
             self.__url_table.append((url, handler))
+            if self.__pool:
+                self.__parse()
             return True
         return False
 
@@ -82,7 +82,7 @@ class MultiprocessingSpider:
         return False
 
     def _add_data_package(self, package):
-        if isinstance(package, DataPackage):
+        if isinstance(package, TaskPackage):
             self.__data_queue.put_nowait(package)
             return True
         return False
@@ -113,6 +113,17 @@ class MultiprocessingSpider:
                     n += 1
                     sleep(randint(1, self._sleep_time))
 
+    def __parse(self):
+        """Parse data."""
+        for response, parse in self.__download_web():
+            for p in parse(response):
+                if isinstance(p, tuple) and 2 == len(p):
+                    self.add_url(p[0], p[1])
+                else:
+                    if isinstance(p, TaskPackage):
+                        self.__data_queue.put_nowait(p)
+            sleep(randint(1, self._sleep_time))
+
     @classmethod
     def _subprocess_wrapper(cls, data_queue, result_queue, sleep_time, timeout, retry):
         while True:
@@ -120,7 +131,7 @@ class MultiprocessingSpider:
             if SignalPackage.END == p:
                 result_queue.put_nowait(p)
                 return
-            elif isinstance(p, DataPackage):
+            elif isinstance(p, TaskPackage):
                 result_package = cls.subprocess_handler(p, sleep_time, timeout, retry)
                 if isinstance(result_package, ResultPackage):
                     result_queue.put_nowait(result_package)
@@ -132,7 +143,7 @@ class MultiprocessingSpider:
     @classmethod
     def subprocess_handler(cls, package, sleep_time, timeout, retry):
         """Handler function for subprocesses.
-        :param package: data package.
+        :param package: task package.
         :param sleep_time: max sleep time after each download.
         :param timeout: timeout.
         :param retry: retry count.
@@ -146,46 +157,39 @@ class MultiprocessingSpider:
 
         def parse(self, response):
 
-            # yield a package for the subprocesses to handle
-            yield DataPackage('https://www.a.com/page_1/task1')
+            # yield a task package
+            yield TaskPackage('https://www.a.com/page_1/task1')
 
-            # yield a new url with its parsing method, which will be added to self.__url_table
+            # yield a new url with its parsing method, which will be parsed later
             yield 'https://www.a.com/page_2', self.parse
 
         :param response: response object, type: requests.models.Response.
-        :rtype: GentileSpider.packages.DataPackage or its subclass or a url tuple.
+        :rtype: GentileSpider.packages.TaskPackage or its subclass or a url tuple.
         """
         raise NotImplementedError
 
     @staticmethod
-    def process_data_package(package):
-        """Process data package.
-        :return: package or None.
-        """
-        return package
-
-    @staticmethod
     def process_result_package(package):
         """Process result package.
-        :return: package or None.
+        :return: MultiprocessingSpider.packages.ResultPackage or its subclass or None.
         """
         return package
 
-    def run(self):
+    def start(self):
         """Start method."""
-        self.__start_subprocess()
+        self._start()
+        self.__parse()
+
+    def _start(self):
+        for _ in range(self._process_num):
+            self.__pool.append(Process(target=self._subprocess_wrapper,
+                                       args=(self.__data_queue, self.__result_queue,
+                                             self._sleep_time, self._timeout, self._retry)))
+            self.__pool[-1].start()
         print(self.info)
         print('———————————————Mission (⊙o⊙) Start———————————————')
-        if not self._download_mode:
-            for response, parse in self.__download_web():
-                for p in parse(response):
-                    if isinstance(p, tuple) and 2 == len(p):
-                        self.add_url(p[0], p[1])
-                    else:
-                        p = self.process_data_package(p)
-                        if isinstance(p, DataPackage):
-                            self.__data_queue.put_nowait(p)
-                sleep(randint(1, self._sleep_time))
+
+    def join(self):
         for _ in self.__pool:
             self.__data_queue.put_nowait(SignalPackage.END)
         n = 0
@@ -201,19 +205,9 @@ class MultiprocessingSpider:
                     json = result_package.json()
                     if json:
                         self.__result.append(json)
-        print('———————————————Mission (∩_∩) Accomplished——————————')
-        self.__terminate_subprocess()
-
-    def __start_subprocess(self):
-        for _ in range(self._process_num):
-            self.__pool.append(Process(target=self._subprocess_wrapper,
-                                       args=(self.__data_queue, self.__result_queue,
-                                             self._sleep_time, self._timeout, self._retry)))
-            self.__pool[-1].start()
-
-    def __terminate_subprocess(self):
-        for _ in range(self._process_num):
+        while self.__pool:
             self.__pool.pop().terminate()
+        print('———————————————Mission (∩_∩) Accomplished——————————')
 
     def to_csv(self, path):
         """Export results in csv.
@@ -375,53 +369,35 @@ class FileSpider(MultiprocessingSpider):
         def parse(self, response):
 
             # yield a file package for subprocesses to handle
-            yield FileDataPackage(image.png, 'https://www.a.com/image.png')
+            yield FilePackage(image.png, 'https://www.a.com/image.png')
 
             # yield a new web page url and its parsing method, which will be parsed later
             yield 'https://www.a.com/page_2', self.parse
 
         :param response: response object, type: requests.models.Response.
-        :rtype: GentileSpider.packages.FileDataPackage or its subclass or a url tuple.
+        :rtype: GentileSpider.packages.FilePackage or its subclass or a url tuple.
         """
         raise NotImplementedError
 
     @staticmethod
     def process_data_package(package):
-        if isinstance(package, FileDataPackage):
+        if isinstance(package, FilePackage):
             return package
 
 
 class FileDownloader(FileSpider):
-    """Multiprocessing file downloader.
-
-    Usage:
-        >>> from MultiprocessingSpider.spiders import FileDownloader
-
-        >>> d = FileDownloader()
-
-        # add a file to download
-        >>> d.add_file('https://www.a.com/file.png', 'file.png')
-        True
-
-        # start the downloader
-        >>> d.run()
-        ...
-    """
-    def __init__(self, name=None, process_num=None, sleep_time=None, timeout=None, retry=None):
-        super().__init__(name, process_num, sleep_time, timeout, retry)
-        self._download_mode = True
-
+    """Multiprocessing file downloader."""
     def add_file(self, url, filename, dirname='', https2http=False):
-        self._add_data_package(FileDataPackage(url, filename, dirname, https2http))
-        return True
+        return self._add_data_package(FilePackage(url, filename, dirname, https2http))
 
     def add_files(self, urls, filenames, dirname='', https2http=False):
         if len(urls) == len(filenames):
-            for url, filename in zip(urls, filenames):
-                self._add_data_package(FileDataPackage(url, filename, dirname, https2http))
-            else:
-                return True
+            return all([self.add_file(url, filename, dirname, https2http) for url, filename in zip(urls, filenames)])
         return False
+
+    def start(self):
+        """Start the downloader."""
+        self._start()
 
     def add_url(self, url, handler=None):
         return False

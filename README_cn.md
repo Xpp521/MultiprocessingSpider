@@ -1,20 +1,20 @@
 # MultiprocessingSpider
-[[简体中文版]](https://github.com/Xpp521/MultiprocessingSpider/blob/master/README_cn.md "中文版")
-## Description
-MultiprocessingSpider is a simple and easy-to-use web crawling and web scraping framework.
+[[English version]](https://github.com/Xpp521/MultiprocessingSpider/blob/master/README.md "English version")
+## 简介
+MultiprocessingSpider是一个基于多进程的、简单易用的爬虫框架。
 
-## Architecture
-![Architecture](https://raw.githubusercontent.com/Xpp521/Images/master/MultiprocessingSpider_Architecture.jpg)
+## 架构图
+![Architecture](https://raw.githubusercontent.com/Xpp521/Images/master/MultiprocessingSpider_Architecture_cn.jpg)
 
-## Dependencies
+## 依赖
 - requests
 
-## Installation
+## 安装
 ```
 pip install MultiprocessingSpider
 ```
 
-## Basic Usage
+## 基本用例
 #### MultiprocessingSpider
 ```python
 from MultiprocessingSpider.spiders import MultiprocessingSpider

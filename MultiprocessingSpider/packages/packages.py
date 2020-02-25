@@ -41,18 +41,17 @@ class ResultPackage:
         return r
 
 
-class DataPackage:
-    """Data package base class."""
-    def __init__(self, url, https2http=False):
+class TaskPackage:
+    """Task package base class."""
+    def __init__(self, url):
         """
-        :param url: data url.
-        :param https2http: whether to convert https to http.
+        :param url: task url.
         """
         if not isinstance(url, str):
             raise TypeError('url must be a string')
         if not url.startswith('http'):
             raise ValueError('wrong url format')
-        self._url = url.replace('https', 'http') if https2http else url
+        self._url = url
 
     @property
     def url(self):
@@ -62,16 +61,17 @@ class DataPackage:
         return '''<{} url: {}>'''.format(self.__class__.__name__, self._url)
 
 
-class FileDataPackage(DataPackage):
+class FilePackage(TaskPackage):
     """File package class."""
     def __init__(self, url, filename, dirname='', https2http=False):
         """
-        :param filename: filename.
         :param url: file url.
+        :param filename: filename.
         :param dirname: the name of the storage directory.
         :param https2http: whether to convert https to http.
         """
-        super(self.__class__, self).__init__(url, https2http)
+        super().__init__(url)
+        self._url = url.replace('https', 'http') if https2http else url
         if isinstance(filename, str) and isinstance(dirname, str):
             self._name = format_path(filename)
             self._root = format_path(dirname, True)
@@ -87,4 +87,4 @@ class FileDataPackage(DataPackage):
         return self._root
 
     def __repr__(self):
-        return '<{} name: {} url: {}>'.format(self.__class__.name, self._name, self._url)
+        return '<{} name: {} url: {}>'.format(self.__class__.__name__, self._name, self._url)

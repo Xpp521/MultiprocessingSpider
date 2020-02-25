@@ -40,7 +40,7 @@ setup(
     keywords=['crawler', 'spider', 'requests', 'multiprocessing'],
     packages=find_packages(getcwd()),
     python_requires='>=3',
-    install_requires=['requests>=2.22.0'],
+    install_requires=['requests'],
     setup_requires=[],
     extras_require={},
     classifiers=[
