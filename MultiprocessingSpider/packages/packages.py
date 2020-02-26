@@ -19,14 +19,14 @@ from ..utils import format_path
 
 
 class SignalPackage(IntEnum):
-    # stop signal
+    # Stop signal
     END = 0
 
 
 class ResultPackage:
     """Result package base class."""
     def __init__(self, sleep=True):
-        # notify the subprocess whether to sleep after returning this package
+        # Notify the subprocess whether to sleep after returning this package
         self.__sleep = sleep
 
     @property
@@ -71,7 +71,7 @@ class FilePackage(TaskPackage):
         :param https2http: whether to convert https to http.
         """
         super().__init__(url)
-        self._url = url.replace('https', 'http') if https2http else url
+        self._url = 'http{}'.format(url[5:]) if url.startswith('https') and https2http else url
         if isinstance(filename, str) and isinstance(dirname, str):
             self._name = format_path(filename)
             self._root = format_path(dirname, True)

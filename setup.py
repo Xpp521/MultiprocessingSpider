@@ -2,22 +2,22 @@ from os import getcwd
 from os.path import join, dirname
 from setuptools import setup, find_packages
 
-# The name of the package on PyPi
+# Module name
 NAME = 'MultiprocessingSpider'
 
-# The root directory
+# Root directory
 ROOT = dirname(__file__)
 
 # Load README.md
 try:
-    with open(join(ROOT, 'README.md')) as f:
+    with open(join(ROOT, 'README.md'), encoding='utf') as f:
         README = f.read()
 except IOError:
     README = ''
 
 # Load CHANGES.md
 try:
-    with open(join(ROOT, 'CHANGES.md')) as f:
+    with open(join(ROOT, 'CHANGES.md'), encoding='utf') as f:
         CHANGES = f.read()
 except IOError:
     CHANGES = ''
@@ -36,7 +36,7 @@ setup(
         'Source': 'https://github.com/Xpp521/MultiprocessingSpider',
         'Tracker': 'https://github.com/Xpp521/MultiprocessingSpider/issues'
     },
-    license='LGPLv3',
+    license='GPLv3',
     keywords=['crawler', 'spider', 'requests', 'multiprocessing'],
     packages=find_packages(getcwd()),
     python_requires='>=3',
@@ -64,4 +64,5 @@ setup(
         'Topic :: Internet :: WWW/HTTP',
         'Topic :: Software Development :: Libraries :: Application Frameworks',
         'Topic :: Software Development :: Libraries :: Python Modules',
-    ])
+    ]
+)

@@ -37,20 +37,20 @@ class MySpider(MultiprocessingSpider):
     ]
 
     def parse(self, response):
-        # # parsing task or new page from "response"
+        # Parsing task or new page from "response"
         ...
-        # yield a task package
+        # Yield a task package
         yield TaskPackage('https://www.a.com/task1')
         ...
-        # yield a new web page url and its parsing method
+        # Yield a new web page url and its parsing method
         yield 'https://www.a.com/page2', self.parse
 
     @classmethod
     def subprocess_handler(cls, package, sleep_time, timeout, retry):
         url = package.url
-        # request "url" and parse data
+        # Request "url" and parse data
         ...
-        # return result package
+        # Return result package
         return MyResultPackage('value1', 'value2')
 
     @staticmethod
@@ -91,12 +91,12 @@ class MySpider(FileSpider):
     buffer_size = 1024
 
     def parse(self, response):
-        # parsing task or new page from "response"
+        # Parsing task or new page from "response"
         ...
-        # yield a file package
+        # Yield a file package
         yield FilePackage('https://www.a.com/file.png', 'file.png')
         ...
-        # yield a new web page url and its parsing method
+        # Yield a new web page url and its parsing method
         yield 'https://www.a.com/page2', self.parse
 
 
@@ -129,3 +129,6 @@ if __name__ == '__main__':
     # Block current process
     d.join()
 ```
+### License
+[GPLv3.0](https://github.com/Xpp521/MultiprocessingSpider/blob/master/LICENSE.md "License")  
+This is a free library, welcome interested developers to modify it : )

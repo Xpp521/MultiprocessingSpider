@@ -14,7 +14,7 @@ MultiprocessingSpider是一个基于多进程的、简单易用的爬虫框架�
 pip install MultiprocessingSpider
 ```
 
-## 基本用例
+## 基本使用
 #### MultiprocessingSpider
 ```python
 from MultiprocessingSpider.spiders import MultiprocessingSpider
@@ -37,7 +37,7 @@ class MySpider(MultiprocessingSpider):
     ]
 
     def parse(self, response):
-        # # parsing task or new page from "response"
+        # parsing task or new page from "response"
         ...
         # yield a task package
         yield TaskPackage('https://www.a.com/task1')
@@ -129,3 +129,6 @@ if __name__ == '__main__':
     # Block current process
     d.join()
 ```
+### 许可证
+[GPLv3.0](https://github.com/Xpp521/MultiprocessingSpider/blob/master/LICENSE.md "License")  
+这是一个自由软件，欢迎感兴趣的小伙伴贡献代码 : )

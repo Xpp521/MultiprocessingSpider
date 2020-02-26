@@ -100,7 +100,7 @@ class UAGenerator:
     )
 
     def random(self):
-        return getattr(self, choice(self.__types))
+        return getattr(self, choice(self.__types))()
 
     def chrome(self, version_from=13, version_to=63, build_from=800, build_to=899):
         saf = '{0}.{1}'.format(randint(531, 536),
