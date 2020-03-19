@@ -26,42 +26,68 @@ from ..packages import TaskPackage, FilePackage, ResultPackage, SignalPackage
 
 class MultiprocessingSpider:
     # Spider name
-    name = ''
+    name = 'unset'
 
     # Proxy ip
     proxies = [None]
 
     # Request headers
-    web_headers = {'User-Agent': 'Mozilla/5.0 (Windows NT 6.1; WOW64) AppleWebKit/537.36 (KHTML, like Gecko) '
-                                 'Chrome/65.0.3325.162 Safari/537.36'}
+    web_headers = {'User-Agent': UAGenerator().random()}
 
     # Start urls
     start_urls = []
 
-    def __init__(self, name=None, process_num=None, sleep_time=None, timeout=None, retry=None):
-        self.name = name if name and isinstance(name, str) else 'unset'
+    def __init__(self, process_num=None, sleep_time=None, timeout=None, retry=None):
         base_class = str(self.__class__.__base__)
         self.__base_class = base_class[base_class.find("'") + 1: base_class.rfind("'")]
         # Process pool
         self.__pool = []
+        self._retry = 3
+        self._timeout = 5
+        self._sleep_time = 5
+        self._process_num = cpu_count()
+        self.retry = retry
         self.timeout = timeout
         self.sleep_time = sleep_time
-        self.retry = retry
+        self.process_num = process_num
         self.__result = []
-        self.__url_table = [(url, self.parse) for url in self.start_urls if url.startswith('http')]
-        self.__handled_url_tables = []
+        self.__url_table = [(url, self.example_parse_method) for url in self.start_urls if url.startswith('http')]
+        self.__handled_urls = []
         self.__data_queue = Queue()
         self.__result_queue = Queue()
-        self.process_num = process_num if isinstance(process_num, int) and 1 <= process_num <= 50 else cpu_count()
 
-    def add_url(self, url, handler=None):
+    def router(self, url):
+        """Routing table.
+        :param url: url.
+        :return: parse method for "url".
+        """
+        raise NotImplementedError
+
+    def example_parse_method(self, response):
+        """Parse data from "response".
+        ex:
+
+        def parse(self, response):
+            ...
+            # Yield a task package
+            yield TaskPackage('https://www.a.com/page1/task1')
+            ...
+            # Yield a new url or a url list
+            yield 'https://www.a.com/page2'
+            ...
+            yield ['https://www.a.com/page3', 'https://www.a.com/page4']
+
+        :param response: response object, type: requests.models.Response.
+        :rtype: GentileSpider.packages.TaskPackage or url.
+        """
+        pass
+
+    def add_url(self, url):
         """Add a url.
         :param url: url.
-        :param handler: handler function, default value: self.parse.
         :rtype: bool.
         """
-        if handler is None:
-            handler = self.parse
+        handler = self.router(url)
         if isinstance(url, str) and url.startswith('http') and callable(handler):
             self.__url_table.append((url, handler))
             if self.__pool:
@@ -69,59 +95,63 @@ class MultiprocessingSpider:
             return True
         return False
 
-    def add_urls(self, urls, handlers=None):
+    def add_urls(self, urls):
         """Add urls.
         :param urls: url list.
-        :param handlers: handler list.
         :rtype: bool.
         """
-        if handlers is None:
-            handlers = [self.parse for _ in urls]
-        if isinstance(urls, list) and isinstance(handlers, list) and len(urls) == len(handlers):
-            return all([self.add_url(url, handler) for url, handler in zip(urls, handlers)])
-        return False
-
-    def _add_data_package(self, package):
-        if isinstance(package, TaskPackage):
-            self.__data_queue.put_nowait(package)
-            return True
+        t = []
+        if isinstance(urls, (list, tuple)):
+            for url in urls:
+                if isinstance(url, str) and url.startswith('http'):
+                    handler = self.router(url)
+                    if callable(handler):
+                        t.append((url, handler))
+            if t:
+                self.__url_table.extend(t)
+                if self.__pool:
+                    self.__parse()
+                return True
         return False
 
     def __download_web(self):
         """Download web page."""
-        while self.__url_table:
-            url_data = self.__url_table.pop()
-            if url_data not in self.__handled_url_tables:
-                n = 1
+        i = 0
+        while i < len(self.__url_table):
+            url_data = self.__url_table[i]
+            url = url_data[0]
+            if url not in self.__handled_urls:
+                n = 0
                 while True:
-                    if self._retry + 1 < n:
-                        self.__handled_url_tables.append(url_data)
+                    if self._retry < n:
                         break
                     try:
-                        response = get(url_data[0], headers=self.web_headers, timeout=self._timeout)
+                        response = get(url, headers=self.web_headers, timeout=self._timeout)
                     except Exception as e:
                         print('【Web page load failed】{}, message: {}, try re-downloading ({}/{})...'.
-                              format(url_data[0], e, n, self._retry))
+                              format(url, e, n, self._retry))
                     else:
                         if 200 <= response.status_code < 300:
-                            self.__handled_url_tables.append(url_data)
+                            self.__handled_urls.append(url)
                             yield response, url_data[1]
-                            break
                         else:
-                            print('【Web page load failed】{}, status code: {}, try re-downloading ({}/{})...'
-                                  .format(url_data[0], response.status_code, n, self._retry))
+                            print('【Web page load failed】{}, status code: {}'.format(url, response.status_code))
+                        break
                     n += 1
                     sleep(randint(1, self._sleep_time))
+            i += 1
+        self.__url_table.clear()
 
     def __parse(self):
-        """Parse data."""
+        """Parse urls in url_table."""
         for response, parse in self.__download_web():
             for p in parse(response):
-                if isinstance(p, tuple) and 2 == len(p):
-                    self.add_url(p[0], p[1])
-                else:
-                    if isinstance(p, TaskPackage):
-                        self.__data_queue.put_nowait(p)
+                if isinstance(p, str):
+                    self.add_url(p)
+                elif isinstance(p, list):
+                    self.add_urls(p)
+                elif isinstance(p, TaskPackage):
+                    self.__data_queue.put_nowait(p)
             sleep(randint(1, self._sleep_time))
 
     @classmethod
@@ -148,23 +178,6 @@ class MultiprocessingSpider:
         :param timeout: timeout.
         :param retry: retry count.
         :rtype: MultiprocessingSpider.packages.ResultPackage or its subclass or None.
-        """
-        raise NotImplementedError
-
-    def parse(self, response):
-        """Parse target content from response.
-        ex:
-
-        def parse(self, response):
-
-            # Yield a task package
-            yield TaskPackage('https://www.a.com/page_1/task1')
-
-            # Yield a new url with its parsing method, which will be parsed later
-            yield 'https://www.a.com/page_2', self.parse
-
-        :param response: response object, type: requests.models.Response.
-        :rtype: GentileSpider.packages.TaskPackage or its subclass or a url tuple.
         """
         raise NotImplementedError
 
@@ -246,12 +259,25 @@ timeout:\t\t{}s
 retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_class,
                              self._process_num, self._sleep_time, self._timeout, self._retry)
 
+    @staticmethod
+    def try_convert_int(s):
+        """Try to convert "s" to a integer.
+        :param s: the object to be converted.
+        :return: returns a integer if successful, otherwise returns "s".
+        """
+        if isinstance(s, str):
+            s = s.strip()
+            if s.isnumeric():
+                return int(s)
+        return s
+
     @property
     def process_num(self):
         return self._process_num
 
     @process_num.setter
     def process_num(self, n):
+        n = self.try_convert_int(n)
         if isinstance(n, int) and 1 <= n <= 50:
             self._process_num = n
 
@@ -261,8 +287,9 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @sleep_time.setter
     def sleep_time(self, t):
-        t = t if isinstance(t, int) and 0 < t else 5
-        self._sleep_time = t
+        t = self.try_convert_int(t)
+        if isinstance(t, int) and 0 < t:
+            self._sleep_time = t
 
     @property
     def timeout(self):
@@ -270,8 +297,9 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @timeout.setter
     def timeout(self, t):
-        t = t if isinstance(t, int) and 0 < t else 5
-        self._timeout = t
+        t = self.try_convert_int(t)
+        if isinstance(t, int) and 0 < t:
+            self._timeout = t
 
     @property
     def retry(self):
@@ -279,16 +307,17 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @retry.setter
     def retry(self, r):
-        r = r if isinstance(r, int) and 0 <= r <= 5 else 3
-        self._retry = r
+        r = self.try_convert_int(r)
+        if isinstance(r, int) and 0 <= r <= 5:
+            self._retry = r
 
     @property
     def url_table(self):
         return self.__url_table
 
     @property
-    def handled_url_table(self):
-        return self.__handled_url_tables
+    def handled_urls(self):
+        return self.__handled_urls
 
 
 class FileSpider(MultiprocessingSpider):
@@ -304,6 +333,35 @@ class FileSpider(MultiprocessingSpider):
     # Chunk size
     buffer_size = 1024
 
+    # Overwrite file
+    overwrite = False
+
+    def router(self, url):
+        """Routing table.
+        :param url: url.
+        :return: parse method for "url".
+        """
+        raise NotImplementedError
+
+    def example_parse_method(self, response):
+        """Parse data from "response".
+        ex:
+
+        def parse(self, response):
+            ...
+            # Yield a file task package
+            yield FilePackage(image.png, 'https://www.a.com/image.png')
+            ...
+            # Yield a new url or a url list
+            yield 'https://www.a.com/page2'
+            ...
+            yield ['https://www.a.com/page3', 'https://www.a.com/page4']
+
+        :param response: response object, type: requests.models.Response.
+        :rtype: GentileSpider.packages.FilePackage or url.
+        """
+        pass
+
     @classmethod
     def _download_file(cls, url, path, timeout=10, retry=0):
         """
@@ -315,9 +373,9 @@ class FileSpider(MultiprocessingSpider):
         """
         headers = cls.file_headers
         headers['User-Agent'] = UAGenerator().random()
-        n = 1
+        n = 0
         while True:
-            if retry + 1 < n:
+            if retry < n:
                 return False
             try:
                 response = get(url, headers=headers, proxies=choice(cls.proxies), timeout=timeout)
@@ -335,8 +393,8 @@ class FileSpider(MultiprocessingSpider):
                     print('【File downloaded successfully】{}'.format(path))
                     return True
                 else:
-                    print('【File download failed】{}, status code: {}, try re-downloading ({}/{})...'.
-                          format(path, response.status_code, n, retry))
+                    print('【File download failed】{}, status code: {}'.format(path, response.status_code))
+                    return False
             n += 1
 
     @classmethod
@@ -351,28 +409,12 @@ class FileSpider(MultiprocessingSpider):
             file_path = join(root, package.name)
         else:
             file_path = package.name
-        if exists(file_path):
+        if exists(file_path) and not cls.overwrite:
+            print('【File already exists】{}'.format(file_path))
             return ResultPackage(False)
         else:
-            cls._download_file(package.url, file_path, timeout)
+            cls._download_file(package.url, file_path, timeout, retry)
             return ResultPackage()
-
-    def parse(self, response):
-        """Parse target content from response.
-        ex:
-
-        def parse(self, response):
-
-            # Yield a file package for subprocesses to handle
-            yield FilePackage(image.png, 'https://www.a.com/image.png')
-
-            # Yield a new web page url and its parsing method, which will be parsed later
-            yield 'https://www.a.com/page_2', self.parse
-
-        :param response: response object, type: requests.models.Response.
-        :rtype: GentileSpider.packages.FilePackage or its subclass or a url tuple.
-        """
-        raise NotImplementedError
 
     @staticmethod
     def process_data_package(package):
@@ -396,11 +438,19 @@ class FileDownloader:
         :param file_headers: request headers.
         :param proxies: proxies dictionary.
         """
-        self.name = name if name and isinstance(name, str) else 'unset'
-        base_class = str(self.__class__.__base__)
-        self.__base_class = base_class[base_class.find("'") + 1: base_class.rfind("'")]
         # Process pool
         self.__pool = []
+        self.__name = 'unset'
+        self.__retry = 3
+        self.__stream = False
+        self.__proxies = [None]
+        self.__timeout = 5
+        self.__overwrite = False
+        self.__sleep_time = 5
+        self.__buffer_size = 1024
+        self.__process_num = cpu_count()
+        self.__file_headers = {}
+        self.name = name
         self.retry = retry
         self.stream = stream
         self.proxies = proxies
@@ -408,26 +458,21 @@ class FileDownloader:
         self.overwrite = overwrite
         self.sleep_time = sleep_time
         self.buffer_size = buffer_size
+        self.process_num = process_num
         self.file_headers = file_headers
         self.__data_queue = Queue()
         self.__result_queue = Queue()
-        self.process_num = process_num if isinstance(process_num, int) and 1 <= process_num <= 50 else cpu_count()
 
     def add_file(self, url, filename, dirname='', https2http=False):
         self.__data_queue.put_nowait(FilePackage(url, filename, dirname, https2http))
         return True
 
-    def add_files(self, urls, filenames, dirname='', https2http=False):
-        if len(urls) == len(filenames):
-            return all([self.add_file(url, filename, dirname, https2http) for url, filename in zip(urls, filenames)])
-        return False
-
     @classmethod
     def _download_file(cls, url, path, timeout, retry, stream, buffer, headers, proxies):
         headers['User-Agent'] = UAGenerator().random()
-        n = 1
+        n = 0
         while True:
-            if retry + 1 < n:
+            if retry < n:
                 return False
             try:
                 response = get(url, headers=headers, proxies=proxies, timeout=timeout)
@@ -445,8 +490,8 @@ class FileDownloader:
                     print('【File downloaded successfully】{}'.format(path))
                     return True
                 else:
-                    print('【File download failed】{}, status code: {}, try re-downloading ({}/{})...'.
-                          format(path, response.status_code, n, retry))
+                    print('【File download failed】{}, status code: {}'.format(path, response.status_code))
+                    return False
             n += 1
 
     @classmethod
@@ -469,12 +514,13 @@ class FileDownloader:
                 else:
                     file_path = p.name
                 if exists(file_path) and not overwrite:
+                    print('【File already exists】{}'.format(file_path))
                     continue
                 cls._download_file(p.url, file_path, timeout, retry, stream, buffer_size, file_headers, choice(proxies))
                 sleep(randint(1, sleep_time))
 
     def start(self):
-        for _ in range(self._process_num):
+        for _ in range(self.__process_num):
             self.__pool.append(Process(target=self._subprocess_handler,
                                        args=(self.__data_queue, self.__result_queue,
                                              self.__sleep_time, self.__timeout, self.__retry,
@@ -489,7 +535,7 @@ class FileDownloader:
             self.__data_queue.put_nowait(SignalPackage.END)
         n = 0
         while True:
-            if self._process_num == n:
+            if self.__process_num == n:
                 break
             result_package = self.__result_queue.get()
             if SignalPackage.END == result_package:
@@ -506,7 +552,7 @@ class:\t\t\t{}
 subprocess count:\t{}
 max sleep time:\t\t{}s
 timeout:\t\t{}s
-retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self._process_num,
+retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_num,
                              self.__sleep_time, self.__timeout, self.__retry)
 
     @property
@@ -518,14 +564,27 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self._process_n
         if isinstance(n, str):
             self.__name = n
 
+    @staticmethod
+    def try_convert_int(s):
+        """Try to convert "s" to a integer.
+        :param s: the object to be converted.
+        :return: returns a integer if successful, otherwise returns "s".
+        """
+        if isinstance(s, str):
+            s = s.strip()
+            if s.isnumeric():
+                return int(s)
+        return s
+
     @property
     def process_num(self):
-        return self._process_num
+        return self.__process_num
 
     @process_num.setter
     def process_num(self, n):
+        n = self.try_convert_int(n)
         if isinstance(n, int) and 1 <= n <= 50:
-            self._process_num = n
+            self.__process_num = n
 
     @property
     def sleep_time(self):
@@ -533,8 +592,9 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self._process_n
 
     @sleep_time.setter
     def sleep_time(self, t):
-        t = t if isinstance(t, int) and 0 < t else 5
-        self.__sleep_time = t
+        t = self.try_convert_int(t)
+        if isinstance(t, int) and 0 < t:
+            self.__sleep_time = t
 
     @property
     def timeout(self):
@@ -542,8 +602,9 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self._process_n
 
     @timeout.setter
     def timeout(self, t):
-        t = t if isinstance(t, int) and 0 < t else 5
-        self.__timeout = t
+        t = self.try_convert_int(t)
+        if isinstance(t, int) and 0 < t:
+            self.__timeout = t
 
     @property
     def retry(self):
@@ -551,8 +612,9 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self._process_n
 
     @retry.setter
     def retry(self, r):
-        r = r if isinstance(r, int) and 0 <= r <= 5 else 3
-        self.__retry = r
+        r = self.try_convert_int(r)
+        if isinstance(r, int) and 0 <= r <= 5:
+            self.__retry = r
 
     @property
     def overwrite(self):
@@ -576,9 +638,9 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self._process_n
 
     @buffer_size.setter
     def buffer_size(self, b):
-        if isinstance(b, str) and b.isnumeric():
-            b = int(b)
-        self.__buffer_size = b if isinstance(b, int) and 1024 < b else 1024
+        b = self.try_convert_int(b)
+        if isinstance(b, int) and 1024 < b:
+            self.__buffer_size = b
 
     @property
     def file_headers(self):
@@ -586,7 +648,8 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self._process_n
 
     @file_headers.setter
     def file_headers(self, h):
-        self.__file_headers = h if isinstance(h, dict) else {}
+        if isinstance(h, dict):
+            self.__file_headers = h
 
     @property
     def proxies(self):
@@ -594,4 +657,5 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self._process_n
 
     @proxies.setter
     def proxies(self, p):
-        self.__proxies = p if isinstance(p, list) and p else [None]
+        if isinstance(p, list) and p:
+            self.__proxies = p

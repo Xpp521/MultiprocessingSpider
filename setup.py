@@ -24,7 +24,7 @@ except IOError:
 
 setup(
     name=NAME,
-    version='1.0.0',
+    version='1.1.0',
     description='A multiprocessing web crawling and web scraping framework.',
     long_description=README + CHANGES,
     long_description_content_type='text/markdown',
@@ -32,9 +32,9 @@ setup(
     author_email='Xpp233@foxmail.com',
     url='https://github.com/Xpp521/MultiprocessingSpider',
     project_urls={
-        'Documentation': 'https://github.com/Xpp521/MultiprocessingSpider/wiki',
         'Source': 'https://github.com/Xpp521/MultiprocessingSpider',
-        'Tracker': 'https://github.com/Xpp521/MultiprocessingSpider/issues'
+        'Tracker': 'https://github.com/Xpp521/MultiprocessingSpider/issues',
+        'Documentation': 'https://github.com/Xpp521/MultiprocessingSpider/wiki',
     },
     license='GPLv3',
     keywords=['crawler', 'spider', 'requests', 'multiprocessing'],

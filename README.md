@@ -36,14 +36,19 @@ class MySpider(MultiprocessingSpider):
         {"http": "http://123.123.123.123:8080"}
     ]
 
+    def router(self, url):
+        return self.parse
+
     def parse(self, response):
         # Parsing task or new page from "response"
         ...
         # Yield a task package
         yield TaskPackage('https://www.a.com/task1')
         ...
-        # Yield a new web page url and its parsing method
-        yield 'https://www.a.com/page2', self.parse
+        # Yield a url or a url list
+        yield 'https://www.a.com/page2'
+        ...
+        yield ['https://www.a.com/page3', 'https://www.a.com/page4']
 
     @classmethod
     def subprocess_handler(cls, package, sleep_time, timeout, retry):
@@ -90,21 +95,28 @@ class MySpider(FileSpider):
 
     buffer_size = 1024
 
+    overwrite = False
+
+    def router(self, url):
+        return self.parse
+
     def parse(self, response):
         # Parsing task or new page from "response"
         ...
         # Yield a file package
         yield FilePackage('https://www.a.com/file.png', 'file.png')
         ...
-        # Yield a new web page url and its parsing method
-        yield 'https://www.a.com/page2', self.parse
+        # Yield a new url or a url list
+        yield 'https://www.a.com/page2'
+        ...
+        yield ['https://www.a.com/page3', 'https://www.a.com/page4']
 
 
 if __name__ == '__main__':
     s = MySpider()
 
-    # Add a new page
-    s.add_url('https://www.a.com/page3')
+    # Add a url
+    s.add_url('https://www.a.com/page5')
 
     # Start the spider
     s.start()
@@ -131,4 +143,4 @@ if __name__ == '__main__':
 ```
 ### License
 [GPLv3.0](https://github.com/Xpp521/MultiprocessingSpider/blob/master/LICENSE.md "License")  
-This is a free library, welcome interested developers to modify it : )
+This is a free library, anyone is welcome to modify : )

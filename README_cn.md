@@ -3,7 +3,7 @@
 ## 简介
 MultiprocessingSpider是一个基于多进程的、简单易用的爬虫框架。
 
-## 架构图
+## 架构
 ![Architecture](https://raw.githubusercontent.com/Xpp521/Images/master/MultiprocessingSpider_Architecture_cn.jpg)
 
 ## 依赖
@@ -36,26 +36,31 @@ class MySpider(MultiprocessingSpider):
         {"http": "http://123.123.123.123:8080"}
     ]
 
+    def router(self, url):
+        return self.parse
+
     def parse(self, response):
-        # parsing task or new page from "response"
+        # 从"response"中解析任务包或新网址
         ...
-        # yield a task package
+        # 返回一个任务包
         yield TaskPackage('https://www.a.com/task1')
         ...
-        # yield a new web page url and its parsing method
-        yield 'https://www.a.com/page2', self.parse
+        # 返回新网址（列表）
+        yield 'https://www.a.com/page2'
+        ...
+        yield ['https://www.a.com/page3', 'https://www.a.com/page4']
 
     @classmethod
     def subprocess_handler(cls, package, sleep_time, timeout, retry):
         url = package.url
-        # request "url" and parse data
+        # 加载"url"并解析数据
         ...
-        # return result package
+        # 返回结果包
         return MyResultPackage('value1', 'value2')
 
     @staticmethod
     def process_result_package(package):
-        # Processing result package
+        # 对结果包中的数据进行预处理
         if 'value1' == package.prop1:
             return package
         else:
@@ -65,16 +70,16 @@ class MySpider(MultiprocessingSpider):
 if __name__ == '__main__':
     s = MySpider()
 
-    # Start the spider
+    # 启动爬虫
     s.start()
 
-    # Block current process
+    # 阻塞当前进程
     s.join()
 
-    # Export results to csv file
+    # 将结果导出到csv文件
     s.to_csv('result.csv')
 
-    # Export results to json file
+    # 将结果导出到json文件
     s.to_json('result.json')
 ```
 #### FileSpider
@@ -90,26 +95,33 @@ class MySpider(FileSpider):
 
     buffer_size = 1024
 
+    overwrite = False
+
+    def router(self, url):
+        return self.parse
+
     def parse(self, response):
-        # parsing task or new page from "response"
+        # 从"response"中解析数据包或新网址
         ...
-        # yield a file package
+        # 返回文件数据包
         yield FilePackage('https://www.a.com/file.png', 'file.png')
         ...
-        # yield a new web page url and its parsing method
-        yield 'https://www.a.com/page2', self.parse
+        # 返回新网址（列表）
+        yield 'https://www.a.com/page2'
+        ...
+        yield ['https://www.a.com/page3', 'https://www.a.com/page4']
 
 
 if __name__ == '__main__':
     s = MySpider()
 
-    # Add a new page
-    s.add_url('https://www.a.com/page3')
+    # 添加网址
+    s.add_url('https://www.a.com/page5')
 
-    # Start the spider
+    # 启动爬虫
     s.start()
 
-    # Block current process
+    # 阻塞当前进程
     s.join()
 ```
 #### FileDownloader
@@ -120,13 +132,13 @@ from MultiprocessingSpider.spiders import FileDownloader
 if __name__ == '__main__':
     d = FileDownloader()
 
-    # Start the downloader
+    # 启动下载器
     d.start()
     
-    # Add a file
+    # 添加任务
     d.add_file('https://www.a.com/file.png', 'file.png')
     
-    # Block current process
+    # 阻塞当前进程
     d.join()
 ```
 ### 许可证
