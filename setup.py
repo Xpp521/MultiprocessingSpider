@@ -24,7 +24,7 @@ except IOError:
 
 setup(
     name=NAME,
-    version='1.1.0',
+    version='1.1.1',
     description='A multiprocessing web crawling and web scraping framework.',
     long_description=README + CHANGES,
     long_description_content_type='text/markdown',

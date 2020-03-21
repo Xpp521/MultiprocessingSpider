@@ -17,9 +17,9 @@
 from time import sleep
 from os import makedirs
 from requests import get
-from ..utils import UAGenerator
 from os.path import exists, join
 from random import randint, choice
+from ..utils import UAGenerator, try_convert_int
 from multiprocessing import Process, Queue, cpu_count
 from ..packages import TaskPackage, FilePackage, ResultPackage, SignalPackage
 
@@ -51,7 +51,9 @@ class MultiprocessingSpider:
         self.sleep_time = sleep_time
         self.process_num = process_num
         self.__result = []
-        self.__url_table = [(url, self.example_parse_method) for url in self.start_urls if url.startswith('http')]
+        self.__url_table = []
+        if self.start_urls:
+            self.add_urls(self.start_urls)
         self.__handled_urls = []
         self.__data_queue = Queue()
         self.__result_queue = Queue()
@@ -190,10 +192,10 @@ class MultiprocessingSpider:
 
     def start(self):
         """Start method."""
-        self._start()
+        self.__start()
         self.__parse()
 
-    def _start(self):
+    def __start(self):
         for _ in range(self._process_num):
             self.__pool.append(Process(target=self._subprocess_wrapper,
                                        args=(self.__data_queue, self.__result_queue,
@@ -259,25 +261,13 @@ timeout:\t\t{}s
 retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_class,
                              self._process_num, self._sleep_time, self._timeout, self._retry)
 
-    @staticmethod
-    def try_convert_int(s):
-        """Try to convert "s" to a integer.
-        :param s: the object to be converted.
-        :return: returns a integer if successful, otherwise returns "s".
-        """
-        if isinstance(s, str):
-            s = s.strip()
-            if s.isnumeric():
-                return int(s)
-        return s
-
     @property
     def process_num(self):
         return self._process_num
 
     @process_num.setter
     def process_num(self, n):
-        n = self.try_convert_int(n)
+        n = try_convert_int(n)
         if isinstance(n, int) and 1 <= n <= 50:
             self._process_num = n
 
@@ -287,7 +277,7 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @sleep_time.setter
     def sleep_time(self, t):
-        t = self.try_convert_int(t)
+        t = try_convert_int(t)
         if isinstance(t, int) and 0 < t:
             self._sleep_time = t
 
@@ -297,7 +287,7 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @timeout.setter
     def timeout(self, t):
-        t = self.try_convert_int(t)
+        t = try_convert_int(t)
         if isinstance(t, int) and 0 < t:
             self._timeout = t
 
@@ -307,7 +297,7 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @retry.setter
     def retry(self, r):
-        r = self.try_convert_int(r)
+        r = try_convert_int(r)
         if isinstance(r, int) and 0 <= r <= 5:
             self._retry = r
 
@@ -464,8 +454,7 @@ class FileDownloader:
         self.__result_queue = Queue()
 
     def add_file(self, url, filename, dirname='', https2http=False):
-        self.__data_queue.put_nowait(FilePackage(url, filename, dirname, https2http))
-        return True
+        return self.__data_queue.put_nowait(FilePackage(url, filename, dirname, https2http))
 
     @classmethod
     def _download_file(cls, url, path, timeout, retry, stream, buffer, headers, proxies):
@@ -564,25 +553,13 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
         if isinstance(n, str):
             self.__name = n
 
-    @staticmethod
-    def try_convert_int(s):
-        """Try to convert "s" to a integer.
-        :param s: the object to be converted.
-        :return: returns a integer if successful, otherwise returns "s".
-        """
-        if isinstance(s, str):
-            s = s.strip()
-            if s.isnumeric():
-                return int(s)
-        return s
-
     @property
     def process_num(self):
         return self.__process_num
 
     @process_num.setter
     def process_num(self, n):
-        n = self.try_convert_int(n)
+        n = try_convert_int(n)
         if isinstance(n, int) and 1 <= n <= 50:
             self.__process_num = n
 
@@ -592,7 +569,7 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @sleep_time.setter
     def sleep_time(self, t):
-        t = self.try_convert_int(t)
+        t = try_convert_int(t)
         if isinstance(t, int) and 0 < t:
             self.__sleep_time = t
 
@@ -602,7 +579,7 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @timeout.setter
     def timeout(self, t):
-        t = self.try_convert_int(t)
+        t = try_convert_int(t)
         if isinstance(t, int) and 0 < t:
             self.__timeout = t
 
@@ -612,7 +589,7 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @retry.setter
     def retry(self, r):
-        r = self.try_convert_int(r)
+        r = try_convert_int(r)
         if isinstance(r, int) and 0 <= r <= 5:
             self.__retry = r
 
@@ -638,7 +615,7 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @buffer_size.setter
     def buffer_size(self, b):
-        b = self.try_convert_int(b)
+        b = try_convert_int(b)
         if isinstance(b, int) and 1024 < b:
             self.__buffer_size = b
 

@@ -41,6 +41,18 @@ def request_post(url, data=None, json=None, **kwargs):
     return None
 
 
+def try_convert_int(s):
+    """Try converting "s" to an integer.
+    :param s: the object to be converted.
+    :return: returns an integer if successful, otherwise returns original object.
+    """
+    if isinstance(s, str):
+        s = s.strip()
+        if s.isnumeric():
+            return int(s)
+    return s
+
+
 def format_path(path, multiple=False, repl='_'):
     """
     Format path, replace invalid characters in it.
@@ -84,10 +96,6 @@ class UAGenerator:
     linux_processors = ('i686', 'x86_64')
 
     mac_processors = ('Intel', 'PPC', 'U; Intel', 'U; PPC')
-
-    ios_versions = (
-        '3.1.3', '4.2.1', '5.1.1', '6.1.6', '7.1.2', '9.3.5', '9.3.6', '10.3.3', '10.3.4', '12.4',
-    )
 
     def random(self):
         return getattr(self, choice(self.__types))()
