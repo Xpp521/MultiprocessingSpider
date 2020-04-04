@@ -29,10 +29,7 @@ class MeiTuLuSpider(FileSpider):
     name = 'MeiTuLuSpider'
 
     proxies = [
-        {"http": "http://39.137.95.74:80"},
-        {"http": "http://39.137.69.7:8080"},
-        {"http": "http://221.180.170.104:8080"},
-        {"http": "http://180.118.252.180:8118"},
+        None
     ]
 
     def router(self, url):

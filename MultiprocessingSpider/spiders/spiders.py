@@ -19,8 +19,8 @@ from os import makedirs
 from requests import get
 from os.path import exists, join
 from random import randint, choice
-from ..utils import UAGenerator, try_convert_int
 from multiprocessing import Process, Queue, cpu_count
+from ..utils import UserAgentGenerator, try_convert2int
 from ..packages import TaskPackage, FilePackage, ResultPackage, SignalPackage
 
 
@@ -32,20 +32,17 @@ class MultiprocessingSpider:
     proxies = [None]
 
     # Request headers
-    web_headers = {'User-Agent': UAGenerator().random()}
+    web_headers = {'User-Agent': UserAgentGenerator().random()}
 
     # Start urls
     start_urls = []
 
     def __init__(self, process_num=None, sleep_time=None, timeout=None, retry=None):
         base_class = str(self.__class__.__base__)
+        self.__cpu_count = cpu_count()
         self.__base_class = base_class[base_class.find("'") + 1: base_class.rfind("'")]
         # Process pool
         self.__pool = []
-        self._retry = 3
-        self._timeout = 5
-        self._sleep_time = 5
-        self._process_num = cpu_count()
         self.retry = retry
         self.timeout = timeout
         self.sleep_time = sleep_time
@@ -140,7 +137,7 @@ class MultiprocessingSpider:
                             print('【Web page load failed】{}, status code: {}'.format(url, response.status_code))
                         break
                     n += 1
-                    sleep(randint(1, self._sleep_time))
+                    sleep(randint(0, self._sleep_time))
             i += 1
         self.__url_table.clear()
 
@@ -154,23 +151,25 @@ class MultiprocessingSpider:
                     self.add_urls(p)
                 elif isinstance(p, TaskPackage):
                     self.__data_queue.put_nowait(p)
-            sleep(randint(1, self._sleep_time))
+            sleep(randint(0, self._sleep_time))
 
     @classmethod
     def _subprocess_wrapper(cls, data_queue, result_queue, sleep_time, timeout, retry):
+        flag = True
         while True:
             p = data_queue.get()
             if SignalPackage.END == p:
                 result_queue.put_nowait(p)
                 return
-            elif isinstance(p, TaskPackage):
+            if flag:
+                sleep(randint(0, sleep_time))
+            if isinstance(p, TaskPackage):
                 result_package = cls.subprocess_handler(p, sleep_time, timeout, retry)
                 if isinstance(result_package, ResultPackage):
                     result_queue.put_nowait(result_package)
-                    if result_package.sleep:
-                        sleep(randint(1, sleep_time))
+                    flag = result_package.sleep
                 else:
-                    sleep(randint(1, sleep_time))
+                    flag = True
 
     @classmethod
     def subprocess_handler(cls, package, sleep_time, timeout, retry):
@@ -267,9 +266,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @process_num.setter
     def process_num(self, n):
-        n = try_convert_int(n)
+        n = try_convert2int(n, self.__cpu_count)
         if isinstance(n, int) and 1 <= n <= 50:
             self._process_num = n
+        else:
+            raise ValueError('invalid value')
 
     @property
     def sleep_time(self):
@@ -277,9 +278,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @sleep_time.setter
     def sleep_time(self, t):
-        t = try_convert_int(t)
-        if isinstance(t, int) and 0 < t:
+        t = try_convert2int(t, 5)
+        if isinstance(t, int) and 0 <= t:
             self._sleep_time = t
+        else:
+            raise ValueError('invalid value')
 
     @property
     def timeout(self):
@@ -287,9 +290,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @timeout.setter
     def timeout(self, t):
-        t = try_convert_int(t)
+        t = try_convert2int(t, 5)
         if isinstance(t, int) and 0 < t:
             self._timeout = t
+        else:
+            raise ValueError('invalid value')
 
     @property
     def retry(self):
@@ -297,9 +302,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__base_cla
 
     @retry.setter
     def retry(self, r):
-        r = try_convert_int(r)
-        if isinstance(r, int) and 0 <= r <= 5:
+        r = try_convert2int(r, 3)
+        if isinstance(r, int) and 0 <= r:
             self._retry = r
+        else:
+            raise ValueError('invalid value')
 
     @property
     def url_table(self):
@@ -362,7 +369,7 @@ class FileSpider(MultiprocessingSpider):
         :rtype: bool.
         """
         headers = cls.file_headers
-        headers['User-Agent'] = UAGenerator().random()
+        headers['User-Agent'] = UserAgentGenerator().random()
         n = 0
         while True:
             if retry < n:
@@ -404,7 +411,6 @@ class FileSpider(MultiprocessingSpider):
             return ResultPackage(False)
         else:
             cls._download_file(package.url, file_path, timeout, retry)
-            return ResultPackage()
 
     @staticmethod
     def process_data_package(package):
@@ -414,10 +420,9 @@ class FileSpider(MultiprocessingSpider):
 
 class FileDownloader:
     """Multiprocessing file downloader."""
-    def __init__(self, name=None, process_num=None, sleep_time=None, timeout=None, retry=None,
+    def __init__(self, process_num=None, sleep_time=None, timeout=None, retry=None,
                  overwrite=False, stream=False, buffer_size=1024, file_headers=None, proxies=None):
         """
-        :param name: downloader name.
         :param process_num: subprocess number.
         :param sleep_time: max sleep time between each download.
         :param timeout: timeout.
@@ -429,18 +434,8 @@ class FileDownloader:
         :param proxies: proxies dictionary.
         """
         # Process pool
+        self.__cpu_count = cpu_count()
         self.__pool = []
-        self.__name = 'unset'
-        self.__retry = 3
-        self.__stream = False
-        self.__proxies = [None]
-        self.__timeout = 5
-        self.__overwrite = False
-        self.__sleep_time = 5
-        self.__buffer_size = 1024
-        self.__process_num = cpu_count()
-        self.__file_headers = {}
-        self.name = name
         self.retry = retry
         self.stream = stream
         self.proxies = proxies
@@ -458,7 +453,7 @@ class FileDownloader:
 
     @classmethod
     def _download_file(cls, url, path, timeout, retry, stream, buffer, headers, proxies):
-        headers['User-Agent'] = UAGenerator().random()
+        headers['User-Agent'] = UserAgentGenerator().random()
         n = 0
         while True:
             if retry < n:
@@ -486,12 +481,15 @@ class FileDownloader:
     @classmethod
     def _subprocess_handler(cls, data_queue, result_queue, sleep_time, timeout, retry,
                             overwrite, stream, buffer_size, file_headers, proxies):
+        flag = True
         while True:
             p = data_queue.get()
             if SignalPackage.END == p:
                 result_queue.put_nowait(p)
                 return
-            elif isinstance(p, FilePackage):
+            if flag:
+                sleep(randint(0, sleep_time))
+            if isinstance(p, FilePackage):
                 root = p.root
                 if root:
                     try:
@@ -504,16 +502,17 @@ class FileDownloader:
                     file_path = p.name
                 if exists(file_path) and not overwrite:
                     print('【File already exists】{}'.format(file_path))
-                    continue
-                cls._download_file(p.url, file_path, timeout, retry, stream, buffer_size, file_headers, choice(proxies))
-                sleep(randint(1, sleep_time))
+                    flag = False
+                else:
+                    cls._download_file(p.url, file_path, timeout, retry,
+                                       stream, buffer_size, file_headers, choice(proxies))
+                    flag = True
 
     def start(self):
         for _ in range(self.__process_num):
             self.__pool.append(Process(target=self._subprocess_handler,
-                                       args=(self.__data_queue, self.__result_queue,
-                                             self.__sleep_time, self.__timeout, self.__retry,
-                                             self.__overwrite, self.__stream, self.__buffer_size,
+                                       args=(self.__data_queue, self.__result_queue, self.__sleep_time, self.__timeout,
+                                             self.__retry, self.__overwrite, self.__stream, self.__buffer_size,
                                              self.__file_headers, self.__proxies)))
             self.__pool[-1].start()
         print(self.info)
@@ -536,22 +535,10 @@ class FileDownloader:
     @property
     def info(self):
         return '''\t\tDownloader info
-name:\t\t\t{}
-class:\t\t\t{}
 subprocess count:\t{}
 max sleep time:\t\t{}s
 timeout:\t\t{}s
-retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_num,
-                             self.__sleep_time, self.__timeout, self.__retry)
-
-    @property
-    def name(self):
-        return self.__name
-
-    @name.setter
-    def name(self, n):
-        if isinstance(n, str):
-            self.__name = n
+retry count:\t\t{}'''.format(self.__process_num, self.__sleep_time, self.__timeout, self.__retry)
 
     @property
     def process_num(self):
@@ -559,9 +546,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @process_num.setter
     def process_num(self, n):
-        n = try_convert_int(n)
+        n = try_convert2int(n, self.__cpu_count)
         if isinstance(n, int) and 1 <= n <= 50:
             self.__process_num = n
+        else:
+            raise ValueError('invalid value')
 
     @property
     def sleep_time(self):
@@ -569,9 +558,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @sleep_time.setter
     def sleep_time(self, t):
-        t = try_convert_int(t)
-        if isinstance(t, int) and 0 < t:
+        t = try_convert2int(t, 5)
+        if isinstance(t, int) and 0 <= t:
             self.__sleep_time = t
+        else:
+            raise ValueError('invalid value')
 
     @property
     def timeout(self):
@@ -579,9 +570,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @timeout.setter
     def timeout(self, t):
-        t = try_convert_int(t)
+        t = try_convert2int(t, 5)
         if isinstance(t, int) and 0 < t:
             self.__timeout = t
+        else:
+            raise ValueError('invalid value')
 
     @property
     def retry(self):
@@ -589,9 +582,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @retry.setter
     def retry(self, r):
-        r = try_convert_int(r)
-        if isinstance(r, int) and 0 <= r <= 5:
+        r = try_convert2int(r, 3)
+        if isinstance(r, int) and 0 <= r:
             self.__retry = r
+        else:
+            raise ValueError('invalid value')
 
     @property
     def overwrite(self):
@@ -615,9 +610,11 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @buffer_size.setter
     def buffer_size(self, b):
-        b = try_convert_int(b)
-        if isinstance(b, int) and 1024 < b:
+        b = try_convert2int(b, 1024)
+        if isinstance(b, int) and 1024 <= b:
             self.__buffer_size = b
+        else:
+            raise ValueError('invalid value')
 
     @property
     def file_headers(self):
@@ -625,8 +622,7 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @file_headers.setter
     def file_headers(self, h):
-        if isinstance(h, dict):
-            self.__file_headers = h
+        self.__file_headers = h if isinstance(h, dict) else {}
 
     @property
     def proxies(self):
@@ -634,5 +630,4 @@ retry count:\t\t{}'''.format(self.name, self.__class__.__name__, self.__process_
 
     @proxies.setter
     def proxies(self, p):
-        if isinstance(p, list) and p:
-            self.__proxies = p
+        self.__proxies = p if isinstance(p, list) and p else [None]

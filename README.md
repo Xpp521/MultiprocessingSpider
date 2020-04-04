@@ -1,7 +1,7 @@
 # MultiprocessingSpider
 [[简体中文版]](https://github.com/Xpp521/MultiprocessingSpider/blob/master/README_cn.md "中文版")
 ## Description
-MultiprocessingSpider is a simple and easy-to-use web crawling and web scraping framework.
+MultiprocessingSpider is a simple and easy to use web crawling and web scraping framework.
 
 ## Architecture
 ![Architecture](https://raw.githubusercontent.com/Xpp521/Images/master/MultiprocessingSpider_Architecture.jpg)
@@ -141,6 +141,7 @@ if __name__ == '__main__':
     # Block current process
     d.join()
 ```
+More examples → [GitHub](https://github.com/Xpp521/MultiprocessingSpider/tree/master/examples "Examples")
 ### License
 [GPLv3.0](https://github.com/Xpp521/MultiprocessingSpider/blob/master/LICENSE.md "License")  
 This is a free library, anyone is welcome to modify : )

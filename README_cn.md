@@ -101,9 +101,9 @@ class MySpider(FileSpider):
         return self.parse
 
     def parse(self, response):
-        # 从"response"中解析数据包或新网址
+        # 从"response"中解析任务包或新网址
         ...
-        # 返回文件数据包
+        # 返回文件任务包
         yield FilePackage('https://www.a.com/file.png', 'file.png')
         ...
         # 返回新网址（列表）
@@ -141,6 +141,7 @@ if __name__ == '__main__':
     # 阻塞当前进程
     d.join()
 ```
+更多用法 → [GitHub](https://github.com/Xpp521/MultiprocessingSpider/tree/master/examples "示例")
 ### 许可证
 [GPLv3.0](https://github.com/Xpp521/MultiprocessingSpider/blob/master/LICENSE.md "License")  
 这是一个自由软件，欢迎感兴趣的小伙伴贡献代码 : )

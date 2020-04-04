@@ -1,4 +1,11 @@
 # 发行说明
+## v1.1.2
+#### 重构
+- 删除 "FileDownloader" 中的 "name" 属性。
+- 完善 "MultiprocessingSpider.utils" 中的 "UserAgentGenerator" 类。
+- 继续优化各属性的setter方法。若给定值不符合条件会抛出异常；"sleep_time" 属性现在可以设置为 0。
+- 调整子进程休眠策略：改为收到任务包之后休眠，可以防止同一时刻发出多个请求。
+___
 ## v1.1.1
 #### 修复漏洞
 - 修复 "start_urls" 失效漏洞。

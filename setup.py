@@ -5,6 +5,9 @@ from setuptools import setup, find_packages
 # Module name
 NAME = 'MultiprocessingSpider'
 
+# Version
+VERSION = '1.1.2'
+
 # Root directory
 ROOT = dirname(__file__)
 
@@ -24,7 +27,7 @@ except IOError:
 
 setup(
     name=NAME,
-    version='1.1.1',
+    version=VERSION,
     description='A multiprocessing web crawling and web scraping framework.',
     long_description=README + CHANGES,
     long_description_content_type='text/markdown',
@@ -50,8 +53,7 @@ setup(
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: Microsoft :: Windows :: Windows NT/2000',
         'Operating System :: POSIX',
-        'License :: OSI Approved :: GNU Lesser General Public License v3 '
-        '(LGPLv3)',
+        'License :: OSI Approved :: GNU General Public License v3 (GPLv3)',
         'Intended Audience :: Developers',
         'Programming Language :: Python',
         'Programming Language :: Python :: 3',
